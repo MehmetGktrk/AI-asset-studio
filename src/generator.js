@@ -10,6 +10,11 @@ import {
     logCostEstimate,
     logCostSummary,
 } from '../utils/cost.utils.js';
+import {
+    logBatchFinish,
+    logBatchStart,
+    logProgress,
+} from '../utils/progress.utils.js';
 
 
 async function countAssets(assetConfig, skipExisting) {
@@ -47,10 +52,23 @@ export async function generateAsset(assetConfig){
         });
     }
 
+    const progress = { completed: 0, total };
+    const batchStart = Date.now();
+
+    if (config.showProgress) {
+        logBatchStart({
+            total,
+            toGenerate,
+            toSkip,
+            concurrency: config.concurrency,
+            skipExisting,
+        });
+    }
+
     const limit = pLimit(config.concurrency);
 
     const tasks = assetConfig.assets.map(asset =>
-        limit(() => processAsset(assetConfig, asset, skipExisting))
+        limit(() => processAsset(assetConfig, asset, skipExisting, progress))
     );
 
     const results = await Promise.allSettled(tasks);
@@ -58,50 +76,86 @@ export async function generateAsset(assetConfig){
     const skipped = results.filter(r => r.status === 'fulfilled' && r.value === 'skipped').length;
     const generated = results.filter(r => r.status === 'fulfilled' && r.value === 'generated').length;
     const failed = results.filter(result => result.status === 'rejected');
+    const totalSeconds = (Date.now() - batchStart) / 1000;
 
-    if (failed.length > 0){
-        console.warn(`Failed: ${failed.length} / ${results.length}`);
-        failed.forEach(result => console.warn(result.reason?.message ?? result.reason));
+    if (config.showProgress) {
+        logBatchFinish({
+            generated,
+            skipped,
+            failed: failed.length,
+            total: results.length,
+            totalSeconds,
+        });
+    } else {
+        if (failed.length > 0) {
+            console.warn(`Failed: ${failed.length} / ${results.length}`);
+            failed.forEach(result => console.warn(result.reason?.message ?? result.reason));
+        }
+
+        if (skipExisting && skipped > 0) {
+            console.log(`Skipped: ${skipped}`);
+        }
+
+        console.log(`Generated: ${generated}`);
+        console.log(`Done: ${generated + skipped} / ${results.length}`);
     }
-
-    if (skipExisting && skipped > 0){
-        console.log(`Skipped: ${skipped}`);
-    }
-
-    console.log(`Generated: ${generated}`);
-    console.log(`Done: ${generated + skipped} / ${results.length}`);
 
     if (config.showCostEstimate) {
-        logCostSummary({ unitPrice, estimatedCount: toGenerate, generatedCount: generated });
+        logCostSummary({
+            unitPrice,
+            estimatedCount: toGenerate,
+            generatedCount: generated,
+            continueSection: config.showProgress,
+        });
     }
 }
 
 
 
 
-async function processAsset(assetConfig, asset, skipExisting){
+async function processAsset(assetConfig, asset, skipExisting, progress){
 
-    const outputPath = getOutputPath(assetConfig, asset);
+    const assetStart = Date.now();
 
-    if (skipExisting && await fs.pathExists(outputPath)) {
-        console.log(`Skipped: ${asset.name}`);
-        return 'skipped';
+    try {
+        const outputPath = getOutputPath(assetConfig, asset);
+
+        if (skipExisting && await fs.pathExists(outputPath)) {
+            if (config.showProgress) {
+                progress.completed++;
+                logProgress(progress.completed, progress.total, asset.name, 'skip');
+            } else {
+                console.log(`Skipped: ${asset.name}`);
+            }
+            return 'skipped';
+        }
+
+        const prompt = buildPrompt(assetConfig.theme, asset);
+
+        const image = await generateImage(prompt);
+
+        await fs.ensureDir(path.dirname(outputPath));
+
+        await fs.writeFile(
+            outputPath,
+            Buffer.from(image, 'base64'),
+        );
+
+        if (config.showProgress) {
+            progress.completed++;
+            const elapsed = (Date.now() - assetStart) / 1000;
+            logProgress(progress.completed, progress.total, asset.name, 'ok', elapsed);
+        } else {
+            console.log(`Generated: ${asset.name}`);
+        }
+        return 'generated';
+    } catch (err) {
+        if (config.showProgress) {
+            progress.completed++;
+            logProgress(progress.completed, progress.total, asset.name, 'fail', 0, err.message);
+        }
+        throw err;
     }
-
-    const prompt = buildPrompt(assetConfig.theme, asset);
-
-    const image = await generateImage(prompt);
-
-    await fs.ensureDir(path.dirname(outputPath));
-
-    await fs.writeFile(
-        outputPath,
-        Buffer.from(image, 'base64'),
-    );
-
-    console.log(`Generated: ${asset.name}`);
-    return 'generated';
 }
-
 
 

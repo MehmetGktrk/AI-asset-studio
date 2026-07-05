@@ -15,6 +15,9 @@ const assetConfig = {
         { category: "item", name: "combustion engine", description: "a combustion engine" },
         { category: "item", name: "lux jet", description: "a lux jet" },
         { category: "item", name: "plane", description: "a plane" },
+        { category: "item", name: "ship", description: "a ship" },
+        { category: "item", name: "submarine", description: "a submarine" },
+        { category: "item", name: "boat", description: "a boat" },
 
 
 

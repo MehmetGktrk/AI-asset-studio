@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ quiet: true });
 
 
 
@@ -13,7 +13,9 @@ export const config = {
 
     concurrency: 4,
 
-    skipExisting: false,
+    skipExisting: true,
 
     showCostEstimate: true,
+
+    showProgress: true,
 }

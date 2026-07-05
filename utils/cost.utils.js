@@ -1,4 +1,6 @@
 import { resolveUnitPrice } from '../pricing/index.js';
+import { color } from './color.utils.js';
+import { logBlank, logPair, logSection } from './console.utils.js';
 
 export function getUnitPrice(model, size, quality) {
     return resolveUnitPrice(model, size, quality);
@@ -17,39 +19,50 @@ export function logCostEstimate({ model, size, quality, total, toGenerate, toSki
     const unitPrice = getUnitPrice(model, size, quality);
     const estimated = estimateCost(unitPrice, toGenerate);
 
-    console.log('Cost estimate');
-    console.log('-------------');
-    console.log(`Model:       ${model}`);
-    console.log(`Size:        ${size}`);
-    console.log(`Quality:     ${quality}`);
+    logSection('Cost estimate');
+    logPair('Model', model, { tint: color.cyan });
+    logPair('Size', size);
+    logPair('Quality', quality);
 
     if (unitPrice == null) {
-        console.log('Unit price:  unknown (pricing not configured for this model/size/quality)');
+        logPair('Unit price', 'unknown (pricing not configured)', { tint: color.yellow });
     } else {
-        console.log(`Unit price:  ${formatUsd(unitPrice)} / image`);
+        logPair('Unit price', `${formatUsd(unitPrice)} / image`, { tint: color.green });
     }
 
-    console.log(`Assets:      ${total} total`);
-    console.log(`  To generate: ${toGenerate}`);
-    console.log(`  To skip:     ${toSkip}${skipExisting ? '' : ' (skipExisting: false)'}`);
+    logPair('Assets', `${total} total`);
+    logPair('To generate', String(toGenerate), { tint: color.green });
+    logPair('To skip', `${toSkip}${skipExisting ? '' : ' (skipExisting: false)'}`, {
+        tint: color.yellow,
+    });
 
     if (unitPrice == null) {
-        console.log('Estimated:   unavailable');
+        logPair('Estimated', 'unavailable', { tint: color.yellow });
     } else if (toGenerate === 0) {
-        console.log('Estimated:   $0.00 (nothing to generate)');
+        logPair('Estimated', '$0.00 (nothing to generate)', { tint: color.dim });
     } else {
-        console.log(`Estimated:   ${formatUsd(estimated)} USD`);
+        logPair('Estimated', `${formatUsd(estimated)} USD`, {
+            tint: (text) => color.bold(color.green(text)),
+        });
     }
 
-    console.log('');
+    logBlank();
 }
 
-export function logCostSummary({ unitPrice, estimatedCount, generatedCount }) {
+export function logCostSummary({ unitPrice, estimatedCount, generatedCount, continueSection = false }) {
     if (unitPrice == null) return;
 
     const estimated = estimateCost(unitPrice, estimatedCount);
     const actual = estimateCost(unitPrice, generatedCount);
 
-    console.log(`Cost (est.): ${formatUsd(estimated)} USD`);
-    console.log(`Cost (gen.): ${formatUsd(actual)} USD`);
+    if (!continueSection) {
+        logSection('Summary');
+    }
+
+    logPair('Cost (est.)', `${formatUsd(estimated)} USD`, { tint: color.green });
+    logPair('Cost (actual)', `${formatUsd(actual)} USD`, {
+        tint: actual > 0
+            ? (text) => color.bold(color.green(text))
+            : color.dim,
+    });
 }

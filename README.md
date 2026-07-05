@@ -124,13 +124,20 @@ This is useful when:
 - Adding new entries to the asset list without redoing the whole batch.
 - Iterating on a few assets while keeping the rest unchanged.
 
-When enabled, the run summary includes how many assets were skipped, generated, and failed:
+When enabled, each asset logs its progress as it completes, and the run ends with a summary:
 
 ```
-Skipped: 7
-Generated: 2
-Done: 9 / 9
+Starting: 9 assets — 2 to generate, 7 to skip (concurrency: 4)
+
+[1/9] bread ⊘ skipped
+[2/9] milk ⊘ skipped
+[3/9] lasagna ✓ (5.1s)
+[4/9] bulldozer ✓ (4.8s)
+
+Finished: 2 generated, 7 skipped, 0 failed — 9/9 in 12.3s (avg 6.2s/asset)
 ```
+
+Set `showProgress: false` in `config.js` to restore the minimal log format (`Generated: name`, `Done: X / Y`).
 
 To force a full regeneration, set `skipExisting: false` or delete the output files you want to replace.
 
