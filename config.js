@@ -10,4 +10,6 @@ export const config = {
     imageSize: "1024x1024",
     imageQuality: "high",
     imageBackground: "transparent",
+
+    concurrency: 4,
 }
