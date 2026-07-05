@@ -5,11 +5,48 @@ import pLimit from 'p-limit';
 import fs from 'fs-extra';
 import path from 'path';
 import { getOutputPath } from '../utils/generator.utils.js';
+import {
+    getUnitPrice,
+    logCostEstimate,
+    logCostSummary,
+} from '../utils/cost.utils.js';
+
+
+async function countAssets(assetConfig, skipExisting) {
+    const total = assetConfig.assets.length;
+    let toSkip = 0;
+
+    if (skipExisting) {
+        for (const asset of assetConfig.assets) {
+            const outputPath = getOutputPath(assetConfig, asset);
+            if (await fs.pathExists(outputPath)) {
+                toSkip++;
+            }
+        }
+    }
+
+    return { total, toGenerate: total - toSkip, toSkip };
+}
 
 
 export async function generateAsset(assetConfig){
 
     const skipExisting = config.skipExisting;
+    const { total, toGenerate, toSkip } = await countAssets(assetConfig, skipExisting);
+    const unitPrice = getUnitPrice(config.openaiModel, config.imageSize, config.imageQuality);
+
+    if (config.showCostEstimate) {
+        logCostEstimate({
+            model: config.openaiModel,
+            size: config.imageSize,
+            quality: config.imageQuality,
+            total,
+            toGenerate,
+            toSkip,
+            skipExisting,
+        });
+    }
+
     const limit = pLimit(config.concurrency);
 
     const tasks = assetConfig.assets.map(asset =>
@@ -33,6 +70,10 @@ export async function generateAsset(assetConfig){
 
     console.log(`Generated: ${generated}`);
     console.log(`Done: ${generated + skipped} / ${results.length}`);
+
+    if (config.showCostEstimate) {
+        logCostSummary({ unitPrice, estimatedCount: toGenerate, generatedCount: generated });
+    }
 }
 
 

@@ -14,4 +14,6 @@ export const config = {
     concurrency: 4,
 
     skipExisting: false,
+
+    showCostEstimate: true,
 }

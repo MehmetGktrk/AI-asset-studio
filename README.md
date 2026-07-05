@@ -9,6 +9,7 @@ Generate consistent, game-ready image assets in bulk using the OpenAI image API.
 - **Concurrent generation** – Assets are generated in parallel with a configurable concurrency limit, so large lists finish much faster.
 - **Fault tolerant** – A single failed asset no longer aborts the run; failures are reported at the end.
 - **Skip existing files** – Optionally skip assets that already exist on disk to save API cost and time when resuming or adding new items.
+- **Cost estimate** – Before each run, shows an estimated API cost based on asset count, model, size, and quality.
 - **Structured output** – Files saved as `assets/<theme>/<category>/<name>.png`.
 - **Configurable prompts** – A prompt builder that enforces a consistent, game-ready art style.
 
@@ -80,6 +81,35 @@ Generated images are written to:
 assets/<theme>/<category>/<name>.png
 ```
 
+| `skipExisting`  | `false` | When `true`, assets whose output file already exists are not regenerated |
+| `showCostEstimate` | `true` | When `true`, prints estimated and actual cost before and after each run |
+
+## Cost estimate
+
+Before generation starts, the run prints an estimated API cost:
+
+```
+Cost estimate
+-------------
+Model:       gpt-image-1-mini
+Size:        1024x1024
+Quality:     high
+Unit price:  $0.04 / image
+Assets:      9 total
+  To generate: 9
+  To skip:     0 (skipExisting: false)
+Estimated:   $0.32 USD
+```
+
+The estimate uses `assets to generate × unit price`. When `skipExisting: true`, only assets missing on disk are counted. After the run, estimated vs. generated cost is shown:
+
+```
+Cost (est.): $0.32 USD
+Cost (gen.): $0.29 USD
+```
+
+Pricing is defined in `pricing/openai-image.js` for supported models (`gpt-image-1-mini`, `gpt-image-1`, `gpt-image-1.5`). Set `showCostEstimate: false` in `config.js` to disable.
+
 ## Skip existing files
 
 Set `skipExisting: true` in `config.js` to avoid regenerating assets whose output file is already on disk. The generator checks the target path before calling the OpenAI API:
@@ -119,8 +149,12 @@ Assets are generated in parallel using [`p-limit`](https://www.npmjs.com/package
 AI-asset-studio/
 ├── index.js            # Entry point and asset configuration
 ├── config.js           # Environment variables and generation settings
+├── pricing/
+│   ├── index.js            # Pricing module exports
+│   └── openai-image.js     # OpenAI image API pricing catalog (USD)
 ├── utils/
-│   └── generator.utils.js  # Output path helpers
+│   ├── generator.utils.js  # Output path helpers
+│   └── cost.utils.js       # Cost calculation and run summaries
 ├── src/
 │   ├── generator.js    # Generates assets in parallel and writes files
 │   ├── prompt.js       # Builds the image prompt from theme + asset
