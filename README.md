@@ -6,6 +6,8 @@ Generate consistent, game-ready image assets in bulk using the OpenAI image API.
 
 - **Theme-based styling** – Centralized art direction (style, lighting, camera, palette) per theme.
 - **Batch generation** – Produce an entire asset list in a single run.
+- **Concurrent generation** – Assets are generated in parallel with a configurable concurrency limit, so large lists finish much faster.
+- **Fault tolerant** – A single failed asset no longer aborts the run; failures are reported at the end.
 - **Structured output** – Files saved as `assets/<theme>/<category>/<name>.png`.
 - **Configurable prompts** – A prompt builder that enforces a consistent, game-ready art style.
 
@@ -28,6 +30,19 @@ Create a `.env` file in the project root (see `.env.example`):
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
+```
+
+Generation settings live in `config.js`, including the model, image size/quality, and the concurrency limit:
+
+```javascript
+export const config = {
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiModel: "gpt-image-1-mini",
+  imageSize: "1024x1024",
+  imageQuality: "high",
+  imageBackground: "transparent",
+  concurrency: 4,
+};
 ```
 
 ## Usage
@@ -58,14 +73,23 @@ Generated images are written to:
 assets/<theme>/<category>/<name>.png
 ```
 
+## Concurrency
+
+Assets are generated in parallel using [`p-limit`](https://www.npmjs.com/package/p-limit). Instead of processing the asset list one item at a time, the generator starts multiple image requests at once, capped by the `concurrency` value in `config.js`.
+
+- `concurrency: 4` means at most 4 images are generated at the same time; the rest wait in a queue and start as soon as a slot frees up.
+- Roughly, total time ≈ `ceil(assetCount / concurrency) × time-per-image`. For example, 9 assets with `concurrency: 4` finish in about 3 waves instead of 9 sequential requests.
+- Raising `concurrency` speeds things up but may hit the OpenAI rate limit (HTTP 429). If you see rate-limit errors, lower the value.
+- The run uses `Promise.allSettled`, so a single failed asset does not cancel the others. A summary of successes and failures is printed at the end.
+
 ## Project Structure
 
 ```
 AI-asset-studio/
 ├── index.js            # Entry point and asset configuration
-├── config.js           # Loads environment variables
+├── config.js           # Environment variables and generation settings (incl. concurrency)
 ├── src/
-│   ├── generator.js    # Iterates assets and writes files
+│   ├── generator.js    # Generates assets in parallel and writes files
 │   ├── prompt.js       # Builds the image prompt from theme + asset
 │   └── image.js        # Calls the OpenAI image API
 └── themes/
