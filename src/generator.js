@@ -4,19 +4,22 @@ import { config } from '../config.js';
 import pLimit from 'p-limit';
 import fs from 'fs-extra';
 import path from 'path';
-
+import { getOutputPath } from '../utils/generator.utils.js';
 
 
 export async function generateAsset(assetConfig){
 
+    const skipExisting = config.skipExisting;
     const limit = pLimit(config.concurrency);
 
     const tasks = assetConfig.assets.map(asset =>
-        limit(() => processAsset(assetConfig, asset))
+        limit(() => processAsset(assetConfig, asset, skipExisting))
     );
 
     const results = await Promise.allSettled(tasks);
 
+    const skipped = results.filter(r => r.status === 'fulfilled' && r.value === 'skipped').length;
+    const generated = results.filter(r => r.status === 'fulfilled' && r.value === 'generated').length;
     const failed = results.filter(result => result.status === 'rejected');
 
     if (failed.length > 0){
@@ -24,34 +27,39 @@ export async function generateAsset(assetConfig){
         failed.forEach(result => console.warn(result.reason?.message ?? result.reason));
     }
 
-    console.log(`Done: ${results.length - failed.length} / ${results.length}`);
+    if (skipExisting && skipped > 0){
+        console.log(`Skipped: ${skipped}`);
+    }
+
+    console.log(`Generated: ${generated}`);
+    console.log(`Done: ${generated + skipped} / ${results.length}`);
 }
 
 
 
 
-async function processAsset(assetConfig, asset){
+async function processAsset(assetConfig, asset, skipExisting){
+
+    const outputPath = getOutputPath(assetConfig, asset);
+
+    if (skipExisting && await fs.pathExists(outputPath)) {
+        console.log(`Skipped: ${asset.name}`);
+        return 'skipped';
+    }
 
     const prompt = buildPrompt(assetConfig.theme, asset);
 
     const image = await generateImage(prompt);
 
-    const fileName = asset.name.toLowerCase().replace(/\s+/g, '_');
-
-    const dir = path.join(
-        assetConfig.outputDir,
-        assetConfig.theme,
-        asset.category
-    );
-
-    await fs.ensureDir(dir);
+    await fs.ensureDir(path.dirname(outputPath));
 
     await fs.writeFile(
-        path.join(dir, fileName + '.png'),
+        outputPath,
         Buffer.from(image, 'base64'),
     );
 
     console.log(`Generated: ${asset.name}`);
+    return 'generated';
 }
 
 

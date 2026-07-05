@@ -12,4 +12,6 @@ export const config = {
     imageBackground: "transparent",
 
     concurrency: 4,
+
+    skipExisting: false,
 }

@@ -31,6 +31,9 @@ export function buildPrompt(theme, asset){
     - transparent background
     - game ready asset
 
+    DESCRIPTION:
+    ${asset.description}
+
     `;
 
     return prompt;

@@ -8,12 +8,13 @@ Generate consistent, game-ready image assets in bulk using the OpenAI image API.
 - **Batch generation** – Produce an entire asset list in a single run.
 - **Concurrent generation** – Assets are generated in parallel with a configurable concurrency limit, so large lists finish much faster.
 - **Fault tolerant** – A single failed asset no longer aborts the run; failures are reported at the end.
+- **Skip existing files** – Optionally skip assets that already exist on disk to save API cost and time when resuming or adding new items.
 - **Structured output** – Files saved as `assets/<theme>/<category>/<name>.png`.
 - **Configurable prompts** – A prompt builder that enforces a consistent, game-ready art style.
 
 ## Requirements
 
-- Node.js 18+ (ES Modules enabled)
+- Node.js 20+ (ES Modules enabled)
 - An OpenAI API key with access to the image models
 
 ## Installation
@@ -32,7 +33,7 @@ Create a `.env` file in the project root (see `.env.example`):
 OPENAI_API_KEY=your_api_key_here
 ```
 
-Generation settings live in `config.js`, including the model, image size/quality, and the concurrency limit:
+Generation settings live in `config.js`, including the model, image size/quality, concurrency, and whether to skip files that already exist:
 
 ```javascript
 export const config = {
@@ -42,8 +43,14 @@ export const config = {
   imageQuality: "high",
   imageBackground: "transparent",
   concurrency: 4,
+  skipExisting: false,
 };
 ```
+
+| Setting         | Default | Description |
+| --------------- | ------- | ----------- |
+| `concurrency`   | `4`     | Max parallel image requests |
+| `skipExisting`  | `false` | When `true`, assets whose output file already exists are not regenerated |
 
 ## Usage
 
@@ -73,6 +80,30 @@ Generated images are written to:
 assets/<theme>/<category>/<name>.png
 ```
 
+## Skip existing files
+
+Set `skipExisting: true` in `config.js` to avoid regenerating assets whose output file is already on disk. The generator checks the target path before calling the OpenAI API:
+
+```
+assets/<theme>/<category>/<name>.png
+```
+
+This is useful when:
+
+- Resuming after a partial failure (only missing assets are generated).
+- Adding new entries to the asset list without redoing the whole batch.
+- Iterating on a few assets while keeping the rest unchanged.
+
+When enabled, the run summary includes how many assets were skipped, generated, and failed:
+
+```
+Skipped: 7
+Generated: 2
+Done: 9 / 9
+```
+
+To force a full regeneration, set `skipExisting: false` or delete the output files you want to replace.
+
 ## Concurrency
 
 Assets are generated in parallel using [`p-limit`](https://www.npmjs.com/package/p-limit). Instead of processing the asset list one item at a time, the generator starts multiple image requests at once, capped by the `concurrency` value in `config.js`.
@@ -87,7 +118,9 @@ Assets are generated in parallel using [`p-limit`](https://www.npmjs.com/package
 ```
 AI-asset-studio/
 ├── index.js            # Entry point and asset configuration
-├── config.js           # Environment variables and generation settings (incl. concurrency)
+├── config.js           # Environment variables and generation settings
+├── utils/
+│   └── generator.utils.js  # Output path helpers
 ├── src/
 │   ├── generator.js    # Generates assets in parallel and writes files
 │   ├── prompt.js       # Builds the image prompt from theme + asset
